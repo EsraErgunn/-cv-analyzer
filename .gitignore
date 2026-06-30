@@ -4,4 +4,4 @@ obj/
 *.user
 *.suo
 .env
-appsettings.Development.jsono
+appsettings.Development.json
