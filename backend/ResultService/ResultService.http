@@ -1,6 +1,11 @@
 @ResultService_HostAddress = http://localhost:5175
 
-GET {{ResultService_HostAddress}}/weatherforecast/
+### Tek CV sonucu (cvId upload yanıtından gelir)
+GET {{ResultService_HostAddress}}/api/results/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+### Kullanıcının tüm sonuçları
+GET {{ResultService_HostAddress}}/api/results/user/3fa85f64-5717-4562-b3fc-2c963f66afa6
 Accept: application/json
 
 ###

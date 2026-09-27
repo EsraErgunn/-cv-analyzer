@@ -1,41 +1,76 @@
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using ResultService.Data;
+using ResultService.Services;
+using ResultService.Workers;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// "ConnectionStrings:ResultDb" verilirse o kullanılır; yoksa Postgres:* ayarlarından oluşturulur.
+var connectionString = builder.Configuration.GetConnectionString("ResultDb")
+    ?? new NpgsqlConnectionStringBuilder
+    {
+        Host = builder.Configuration["Postgres:Host"] ?? "localhost",
+        Port = int.TryParse(builder.Configuration["Postgres:Port"], out var pgPort) ? pgPort : 5432,
+        Database = builder.Configuration["Postgres:Db"] ?? "cvanalyzer",
+        Username = builder.Configuration["Postgres:User"] ?? "cvuser",
+        Password = builder.Configuration["Postgres:Pass"] ?? "cvpass123"
+    }.ConnectionString;
+
+builder.Services.AddDbContext<ResultDbContext>(options => options.UseNpgsql(connectionString));
+
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration["Redis:Connection"] ?? "localhost:6379";
+    options.InstanceName = "cv-analyzer:";
+});
+
+builder.Services.AddScoped<ResultStore>();
+builder.Services.AddHostedService<CvAnalyzedConsumer>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+await EnsureDatabaseAsync(app);
 
-app.UseHttpsRedirection();
+app.UseSwagger();
+app.UseSwaggerUI();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+var results = app.MapGroup("/api/results").WithTags("Results");
 
-app.MapGet("/weatherforecast", () =>
+results.MapGet("/{cvId:guid}", async (Guid cvId, ResultStore store, CancellationToken ct) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    var result = await store.GetAsync(cvId, ct);
+    // Analiz asenkron olduğundan sonuç henüz yoksa istemci bir süre sonra tekrar sorgular.
+    return result is null
+        ? Results.NotFound(new { cvId, status = "processing", message = "Analiz henüz tamamlanmadı veya CV bulunamadı." })
+        : Results.Ok(result);
+});
+
+results.MapGet("/user/{userId:guid}", async (Guid userId, ResultStore store, CancellationToken ct) =>
+    Results.Ok(await store.GetByUserAsync(userId, ct)));
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "ResultService" }));
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+static async Task EnsureDatabaseAsync(WebApplication app)
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    // Tablo yoksa oluşturulur. Şema büyüdükçe EF Core migration'larına geçilmesi önerilir.
+    for (var attempt = 1; ; attempt++)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<ResultDbContext>().Database.EnsureCreatedAsync();
+            return;
+        }
+        catch (Exception ex) when (attempt < 10)
+        {
+            app.Logger.LogWarning("PostgreSQL hazır değil ({Message}), tekrar denenecek ({Attempt}/10).", ex.Message, attempt);
+            await Task.Delay(TimeSpan.FromSeconds(3));
+        }
+    }
 }

@@ -1,6 +1,0 @@
-@AIAnalyzerService_HostAddress = http://localhost:5118
-
-GET {{AIAnalyzerService_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

@@ -1,6 +1,7 @@
 using Minio;
 using CVParserService.Services;
 using CVParserService.Workers;
+using Shared.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,10 +14,13 @@ builder.Services.AddMinio(config => config
 
 builder.Services.AddScoped<MinioDownloadService>();
 builder.Services.AddScoped<PdfTextExtractor>();
-builder.Services.AddScoped<RabbitMqPublisher>();
+builder.Services.AddSingleton<CvSectionParser>();
+builder.Services.AddSingleton<RabbitMqPublisher>();
 
 builder.Services.AddHostedService<CvUploadedConsumer>();
 
 var app = builder.Build();
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "CVParserService" }));
 
 app.Run();

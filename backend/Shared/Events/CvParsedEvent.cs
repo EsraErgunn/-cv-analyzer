@@ -3,7 +3,9 @@ namespace Shared.Events;
 public class CvParsedEvent
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CvId { get; set; }
     public Guid UserId { get; set; }
+    public string FileName { get; set; } = string.Empty;
     public string JobDescription { get; set; } = string.Empty;
     public List<string> Skills { get; set; } = new();
     public List<string> Experience { get; set; } = new();
