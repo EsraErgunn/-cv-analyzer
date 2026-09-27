@@ -1,6 +1,6 @@
 @CVParserService_HostAddress = http://localhost:5030
 
-GET {{CVParserService_HostAddress}}/weatherforecast/
+GET {{CVParserService_HostAddress}}/health
 Accept: application/json
 
 ###

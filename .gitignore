@@ -1,7 +1,8 @@
-﻿bin/
+bin/
 obj/
 .vs/
 *.user
 *.suo
 .env
 appsettings.Development.json
+TestResults/

@@ -1,4 +1,5 @@
 using Minio;
+using Shared.Messaging;
 using UploadService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,5 +24,6 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "UploadService" }));
 
 app.Run();

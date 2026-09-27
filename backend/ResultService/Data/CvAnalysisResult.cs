@@ -1,8 +1,8 @@
-namespace Shared.Events;
+namespace ResultService.Data;
 
-public class CvAnalyzedEvent
+public class CvAnalysisResult
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    // Upload sırasında üretilen CvId; istemci sonucu bu kimlikle sorgular.
     public Guid CvId { get; set; }
     public Guid UserId { get; set; }
     public string FileName { get; set; } = string.Empty;
@@ -13,5 +13,5 @@ public class CvAnalyzedEvent
     public string Summary { get; set; } = string.Empty;
     public string ImprovedCvText { get; set; } = string.Empty;
     public string AnalyzerName { get; set; } = string.Empty;
-    public DateTime AnalyzedAt { get; set; } = DateTime.UtcNow;
+    public DateTime AnalyzedAt { get; set; }
 }

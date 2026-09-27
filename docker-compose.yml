@@ -1,5 +1,7 @@
 services:
 
+  # ---------- Altyapı ----------
+
   postgres:
     image: postgres:16
     container_name: cv_postgres
@@ -12,6 +14,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -32,6 +39,11 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
 
   minio:
     image: minio/minio
@@ -46,6 +58,109 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+
+  # ---------- Uygulama servisleri ----------
+  # Sadece altyapıyı başlatmak için:  docker compose up -d postgres redis rabbitmq minio
+  # Her şeyi başlatmak için:           docker compose --profile app up -d --build
+
+  api-gateway:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: ApiGateway
+    container_name: cv_api_gateway
+    restart: unless-stopped
+    environment:
+      ReverseProxy__Clusters__upload-cluster__Destinations__upload__Address: http://upload-service:8080
+      ReverseProxy__Clusters__result-cluster__Destinations__result__Address: http://result-service:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - upload-service
+      - result-service
+
+  upload-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: UploadService
+    container_name: cv_upload_service
+    restart: unless-stopped
+    environment: &messaging-env
+      MinIO__Endpoint: minio:9000
+      MinIO__User: ${MINIO_USER}
+      MinIO__Pass: ${MINIO_PASS}
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__User: ${RABBITMQ_USER}
+      RabbitMQ__Pass: ${RABBITMQ_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  cv-parser-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: CVParserService
+    container_name: cv_parser_service
+    restart: unless-stopped
+    environment: *messaging-env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  ai-analyzer-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: AIAnalyzerService
+    container_name: cv_ai_analyzer_service
+    restart: unless-stopped
+    environment:
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__User: ${RABBITMQ_USER}
+      RabbitMQ__Pass: ${RABBITMQ_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  result-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: ResultService
+    container_name: cv_result_service
+    restart: unless-stopped
+    environment:
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__User: ${RABBITMQ_USER}
+      RabbitMQ__Pass: ${RABBITMQ_PASS}
+      Postgres__Host: postgres
+      Postgres__Db: ${POSTGRES_DB}
+      Postgres__User: ${POSTGRES_USER}
+      Postgres__Pass: ${POSTGRES_PASSWORD}
+      Redis__Connection: redis:6379
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   postgres_data:

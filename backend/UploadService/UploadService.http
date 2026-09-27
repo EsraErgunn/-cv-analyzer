@@ -1,6 +1,23 @@
 @UploadService_HostAddress = http://localhost:5264
 
-GET {{UploadService_HostAddress}}/weatherforecast/
-Accept: application/json
+### CV yükle (multipart/form-data). cv.pdf dosyasını bu .http dosyasının yanına koyun.
+POST {{UploadService_HostAddress}}/api/upload
+Content-Type: multipart/form-data; boundary=cvboundary
+
+--cvboundary
+Content-Disposition: form-data; name="file"; filename="cv.pdf"
+Content-Type: application/pdf
+
+< ./cv.pdf
+--cvboundary
+Content-Disposition: form-data; name="jobDescription"
+
+Senior .NET Developer - C#, ASP.NET Core, Docker, RabbitMQ, PostgreSQL, Redis
+--cvboundary
+Content-Disposition: form-data; name="userId"
+
+3fa85f64-5717-4562-b3fc-2c963f66afa6
+--cvboundary--
 
 ###
+GET {{UploadService_HostAddress}}/health

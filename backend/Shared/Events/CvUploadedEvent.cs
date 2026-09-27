@@ -2,6 +2,7 @@ namespace Shared.Events;
 
 public class CvUploadedEvent
 {
+    // Id aynı zamanda CV'nin korelasyon kimliğidir (CvId); sonraki tüm event'lerde taşınır.
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }
     public string FileName { get; set; } = string.Empty;
